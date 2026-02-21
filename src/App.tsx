@@ -77,6 +77,15 @@ export default function App() {
   const [scoringVolunteer, setScoringVolunteer] = useState<Volunteer | null>(null);
   const [scoreForm, setScoreForm] = useState({ puntualidad: 5, responsabilidad: 5, orden: 5 });
 
+  // Registration State
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [newVolunteer, setNewVolunteer] = useState<Partial<Volunteer>>({
+    name: '',
+    functions: [],
+    availability: [],
+    restrictions: []
+  });
+
   const currentWeekStart = useMemo(() => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'), []);
   const lastWeekStart = useMemo(() => format(subWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), 1), 'yyyy-MM-dd'), []);
 
@@ -121,6 +130,30 @@ export default function App() {
     if (confirm('¿Estás seguro de reiniciar todos los puntajes? Esta acción no se puede deshacer.')) {
       await fetch('/api/volunteers/reset-scores', { method: 'POST' });
       fetchVolunteers();
+    }
+  };
+
+  const registerVolunteer = async () => {
+    if (!newVolunteer.name || newVolunteer.functions?.length === 0 || newVolunteer.availability?.length === 0) {
+      alert('Por favor completa los campos obligatorios');
+      return;
+    }
+    setLoading(true);
+    await fetch('/api/volunteers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newVolunteer)
+    });
+    setNewVolunteer({ name: '', functions: [], availability: [], restrictions: [] });
+    setIsRegisterModalOpen(false);
+    await fetchVolunteers();
+    setLoading(false);
+  };
+
+  const deleteVolunteer = async (id: number) => {
+    if (confirm('¿Estás seguro de eliminar este voluntario?')) {
+      await fetch(`/api/volunteers/${id}`, { method: 'DELETE' });
+      await fetchVolunteers();
     }
   };
 
@@ -537,7 +570,10 @@ export default function App() {
                         <Users className="text-[#2e4f76]" />
                         Equipo
                       </h3>
-                      <button className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                      <button 
+                        onClick={() => setIsRegisterModalOpen(true)}
+                        className="p-2 bg-gray-100 rounded-lg hover:bg-[#ce7e27] hover:text-white transition-all shadow-sm"
+                      >
                         <Plus size={20} />
                       </button>
                     </div>
@@ -562,6 +598,7 @@ export default function App() {
                               <Star size={16} />
                             </button>
                             <button 
+                              onClick={() => deleteVolunteer(v.id)}
                               className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-all"
                               title="Eliminar"
                             >
@@ -706,6 +743,115 @@ export default function App() {
                   className="flex-1 bg-[#2e4f76] text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#0f1e3f] transition-all shadow-xl shadow-[#2e4f76]/20"
                 >
                   Guardar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Registration Modal */}
+      <AnimatePresence>
+        {isRegisterModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0f1e3f]/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-10 overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-[#ce7e27]" />
+              <h3 className="text-2xl font-black uppercase tracking-tight mb-6">Registrar Voluntario</h3>
+              
+              <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Nombre Completo</label>
+                  <input 
+                    type="text" 
+                    value={newVolunteer.name}
+                    onChange={(e) => setNewVolunteer({...newVolunteer, name: e.target.value})}
+                    placeholder="Ej. Juan Pérez"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#ce7e27] outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">Funciones Preferidas</label>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_FUNCTIONS.map(f => (
+                      <button
+                        key={f}
+                        onClick={() => {
+                          const current = newVolunteer.functions || [];
+                          const next = current.includes(f) ? current.filter(x => x !== f) : [...current, f];
+                          setNewVolunteer({...newVolunteer, functions: next});
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2",
+                          newVolunteer.functions?.includes(f) 
+                            ? "bg-[#2e4f76] text-white border-[#2e4f76]" 
+                            : "bg-white text-gray-600 border-gray-200 hover:border-[#ce7e27]"
+                        )}
+                      >
+                        {getFunctionIcon(f)}
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">Disponibilidad de Días</label>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_SERVICES.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          const current = newVolunteer.availability || [];
+                          const next = current.includes(s) ? current.filter(x => x !== s) : [...current, s];
+                          setNewVolunteer({...newVolunteer, availability: next});
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+                          newVolunteer.availability?.includes(s) 
+                            ? "bg-[#ce7e27] text-white border-[#ce7e27]" 
+                            : "bg-white text-gray-600 border-gray-200 hover:border-[#ce7e27]"
+                        )}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Restricciones o Notas</label>
+                  <textarea 
+                    value={newVolunteer.restrictions?.join('\n')}
+                    onChange={(e) => setNewVolunteer({...newVolunteer, restrictions: e.target.value.split('\n')})}
+                    placeholder="Ej. No puede el 15 de Marzo"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#ce7e27] outline-none transition-all min-h-[100px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-10">
+                <button 
+                  onClick={() => setIsRegisterModalOpen(false)}
+                  className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={registerVolunteer}
+                  disabled={loading}
+                  className="flex-1 bg-[#2e4f76] text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#0f1e3f] transition-all shadow-xl shadow-[#2e4f76]/20 disabled:opacity-50"
+                >
+                  {loading ? 'Guardando...' : 'Registrar'}
                 </button>
               </div>
             </motion.div>
